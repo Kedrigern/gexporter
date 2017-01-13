@@ -1,0 +1,8 @@
+sh
+wget
+markdown
+dateutils
+beautifulsoup4
+ConfigArgParse
+Django
+Wand
