@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import unittest
+from decimal import *
 
 from gexport.__main__ import GParserUCT
 
@@ -30,9 +31,13 @@ class UCTtest(unittest.TestCase):
         self.assertEqual(6171100000001, self.res['org'])
 
     def test_amount1(self):
-        self.assertEqual("0000000000000000", self.res['amount1a'])
+        self.assertEqual(Decimal("0000000000000000"), self.res['amount1a'])
+        self.assertEqual(Decimal(0), self.res['amount1a'])
         self.assertEqual(0, self.res['amount1b'])
+        self.assertEqual(Decimal(0.0), self.res['amount1'])
 
     def test_amount2(self):
-        self.assertEqual("0000000000039022", self.res['amount2a'])
+        self.assertEqual(Decimal("0000000000039022"), self.res['amount2a'])
+        self.assertEqual(Decimal(39022), self.res['amount2a'])
         self.assertEqual(6, self.res['amount2b'])
+        self.assertEqual(Decimal("39022.06"), self.res['amount2'])

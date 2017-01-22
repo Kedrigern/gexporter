@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import unittest
+from decimal import *
 
 from gexport.__main__ import GParserUCR
 
@@ -31,13 +32,14 @@ class UCRtest1(unittest.TestCase):
         self.assertEqual(6171100000001, self.res['org'])
 
     def test_amount1(self):
-        self.assertEqual("0000000000000000", self.res['amount1a'])
+        self.assertEqual(Decimal("0000000000000000"), self.res['amount1a'])
         self.assertEqual(0, self.res['amount1b'])
+        self.assertEqual(Decimal("0.0"), self.res['amount1'])
 
     def test_amount2(self):
-        self.assertEqual("0000000003543000", self.res['amount2a'])
+        self.assertEqual(Decimal("0000000003543000"), self.res['amount2a'])
         self.assertEqual(0, self.res['amount2b'])
-
+        self.assertEqual(Decimal("3543000.0"), self.res['amount2'])
 
 class UCRtest2(unittest.TestCase):
     s2 = 'G/@01000000001000231000000000000111100000000000100000009006171090000000000000001390000000 000000000000000000'
@@ -65,9 +67,9 @@ class UCRtest2(unittest.TestCase):
         self.assertEqual(6171090000000, self.res['org'])
 
     def test_amount1(self):
-        self.assertEqual("0000000013900000", self.res['amount1a'])
+        self.assertEqual(Decimal("0000000013900000"), self.res['amount1a'])
         self.assertEqual(0, self.res['amount1b'])
 
     def test_amount2(self):
-        self.assertEqual("0000000000000000", self.res['amount2a'])
+        self.assertEqual(Decimal("0000000000000000"), self.res['amount2a'])
         self.assertEqual(0, self.res['amount2b'])

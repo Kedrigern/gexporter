@@ -42,11 +42,13 @@ class GParser():
 
     def __parse_amounts(self, s):
         # TODO: decimal instead string
-        self.result['amount1a'] = s[self.amount1a[0]: self.amount1a[0]+self.amount1a[1]]
+        self.result['amount1a'] = Decimal(s[self.amount1a[0]: self.amount1a[0]+self.amount1a[1]])
         self.result['amount1b'] = int(s[self.amount1b[0]: self.amount1b[0]+self.amount1b[1]])
+        self.result['amount1'] = self.result['amount1a'] + Decimal(self.result['amount1b']) / Decimal(100)
         # TODO: decimal isntead string
-        self.result['amount2a'] = s[self.amount2a[0]: self.amount2a[0]+self.amount2a[1]]
+        self.result['amount2a'] = Decimal(s[self.amount2a[0]: self.amount2a[0]+self.amount2a[1]])
         self.result['amount2b'] = int(s[self.amount2b[0]: self.amount2b[0]+self.amount2b[1]])
+        self.result['amount2'] = self.result['amount2a'] + Decimal(self.result['amount2b']) / Decimal(100)
 
     def get_result(self):
         return self.result
