@@ -1,7 +1,9 @@
 
-# Parsování kxx
+# Parsování souborů kxx
 
-Relevantní je soubor `uct`, kde je všechno. Tento soubor má v Černošicích za 3 měsíce (leden-březen 2016) 1 496 371 řádek. Čísla jsou zarovnána nulami.
+Jedná se o speciální formát Gordicu. Relevantní je soubor `uct`, kde je všechno. Tento soubor má v Černošicích za 3 měsíce (leden-březen 2016) 1 496 371 řádek. Čísla jsou zarovnána nulami.
+
+## Rozbor struktury
 
 1) Hledejme např. účetní výdaj `160110002`, vyskytuje na 3 místech exportovaného dokumentu `data/22,12,2016_uct.kxx`. Nejdřív od řádku 94878 k 94889, poté od řádku 138183 k 138194 a pak ještě jednou.
 
@@ -94,5 +96,18 @@ G/@01000000001000231000000000000111100000000000100000009006171090000000000000001
 | ORG                |  13   | 6171100000001 | 6171090000000 |
 | Částka - má dáti   |  17+2 |          0.00 |  3,543,000.00 |
 | Částka - dal       |  17+2 | 13,900,000.00 |          0.00 |
+
+## Parsování
+
+1. Projdu dokument, abych našel všechna **čísla dokladů** a rozsah řádků na kterém jsou
+    - první na prvním řádku, zbylá za DUDem
+    - ukončím jakmile se čísla dokladu začnou opakovat
+    - sekce by měla mít 12-16 řádek (odhad)
+2. Následně parsuji dle čísel dokladů
+    - hlavní řádek
+    - poznámku
+3. Vyexportuji do CSV a zazipuji
+    - id, para, polozka, zj, uz, orj, org, catska1, castka2, popis
+4. Nyní mi již chybí jen číselník ORG a ORJ
 
 [MFČR]: http://www.ucetni-portal.cz/ciselnik-ucelovych-znaku-1168-a.html

@@ -3,14 +3,14 @@
 import unittest
 from decimal import *
 
-from gexport.__main__ import GParserUCT
+from gexport.record import parse_record
 
 class UCTtest(unittest.TestCase):
     s1 = 'G/@03120000264000231030100006171516800000000000900000010006171100000001000000000000000000 000000000003902206'
 
     def setUp(self):
-        uct = GParserUCT(self.s1)
-        self.res = uct.get_result()
+        self.res = {}
+        uct = parse_record(self.res, self.s1)
 
     def test_para(self):
         self.assertEqual(6171, self.res['para'])
