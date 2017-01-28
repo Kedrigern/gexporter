@@ -2,6 +2,7 @@
 
 import re
 import sys
+import csv
 
 from . import lines
 from . import record
@@ -13,12 +14,14 @@ def loop_count(infile):
         i += 1
     print(i)
 
-def loop_stats(infile):
+def loop_stats(infile, limit = None):
     """Primitive stats about lines"""
     i = 0
     for line in infile:
         i += 1
-        if re.match(lines.num1, line):
+        if limit and i >= limit:
+            break
+        elif re.match(lines.num1, line):
             print('1', end='')
         elif re.match(lines.num2, line):
             print('2')
@@ -75,13 +78,29 @@ def loop_parse(infile):
             find_dud = True
             find_comment = False
         previous = line
-    print(records)
+
+    print(len(records))
+    if len(records) < 40:
+        print(records)
+
+    # CSV export
+    with open('data.csv', 'w') as csvfile:
+        fieldnames = ['id', 'para', 'polo', 'uz', 'zj', 'org', 'orj', 'amount1', 'amount2', 'comment']
+        writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+        writer.writeheader()
+        for r in records:
+            del(r['amount1a'])
+            del(r['amount1b'])
+            del(r['amount2a'])
+            del(r['amount2b'])
+            writer.writerow(r)
 
 def main():
     filename = 'test/data.kxx'
+    #filename = 'data/22,12,2016_uct.kxx'
     with open(filename, encoding="cp1250") as infile:
-        loop_stats(infile)
-        #loop_parse(infile)
+        #loop_stats(infile)
+        loop_parse(infile)
 
 if __name__ == '__main__':
     sys.exit(main())
