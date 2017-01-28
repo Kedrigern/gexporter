@@ -5,12 +5,15 @@ from decimal import *
 
 from gexport.record import parse_record
 
-class UCTtest(unittest.TestCase):
-    s1 = 'G/@03120000264000231030100006171516800000000000900000010006171100000001000000000000000000 000000000003902206'
+class RecordTest(unittest.TestCase):
+    s1 = 'G/@03120000264000231030100006171516800000000000900000010006171100000001000000000000000000 000000000003902206 '
+    s2 = 'G/@03120000264000231030100006171516800000000000900000010006171100000001000000000000000000-000000000003902206-'
 
     def setUp(self):
         self.res = {}
-        uct = parse_record(self.res, self.s1)
+        self.res2 = {}
+        parse_record(self.res, self.s1)
+        parse_record(self.res2, self.s2)
 
     def test_para(self):
         self.assertEqual(6171, self.res['para'])
@@ -36,8 +39,20 @@ class UCTtest(unittest.TestCase):
         self.assertEqual(0, self.res['amount1b'])
         self.assertEqual(Decimal(0.0), self.res['amount1'])
 
+    def test_amount1_neq(self):
+        self.assertEqual(Decimal("0000000000000000"), self.res2['amount1a'])
+        self.assertEqual(Decimal(0), self.res2['amount1a'])
+        self.assertEqual(0, self.res2['amount1b'])
+        self.assertEqual(Decimal(-0.0), self.res2['amount1'])
+
     def test_amount2(self):
         self.assertEqual(Decimal("0000000000039022"), self.res['amount2a'])
         self.assertEqual(Decimal(39022), self.res['amount2a'])
         self.assertEqual(6, self.res['amount2b'])
         self.assertEqual(Decimal("39022.06"), self.res['amount2'])
+
+    def test_amount2_neq(self):
+        self.assertEqual(Decimal("0000000000039022"), self.res2['amount2a'])
+        self.assertEqual(Decimal(39022), self.res2['amount2a'])
+        self.assertEqual(6, self.res2['amount2b'])
+        self.assertEqual(Decimal("-39022.06"), self.res2['amount2'])
