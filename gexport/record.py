@@ -25,13 +25,13 @@ def parse_record(result, s):
     parse_amounts(result, s)
 
 def parse_amounts(result, s):
-    result['amount1a'] = Decimal(s[amount1a[0]: amount1a[0]+amount1a[1]])
-    result['amount1b'] = int(s[amount1b[0]: amount1b[0]+amount1b[1]])
-    result['amount1'] = result['amount1a'] + Decimal(result['amount1b']) / Decimal(100)
+    a = Decimal(s[amount1a[0]: amount1a[0]+amount1a[1]])
+    b = int(s[amount1b[0]: amount1b[0]+amount1b[1]])
+    result['amount1'] = a + Decimal(b) / Decimal(100)
     if s[89] == '-':
         result['amount1'] *= -1
-    result['amount2a'] = Decimal(s[amount2a[0]: amount2a[0]+amount2a[1]])
-    result['amount2b'] = int(s[amount2b[0]: amount2b[0]+amount2b[1]])
-    result['amount2'] = result['amount2a'] + Decimal(result['amount2b']) / Decimal(100)
+    a = Decimal(s[amount2a[0]: amount2a[0]+amount2a[1]])
+    b = int(s[amount2b[0]: amount2b[0]+amount2b[1]])
+    result['amount2'] = a+ Decimal(b) / Decimal(100)
     if s[108] == '-':
         result['amount2'] *= -1

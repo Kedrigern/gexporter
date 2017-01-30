@@ -83,24 +83,48 @@ def loop_parse(infile):
     if len(records) < 40:
         print(records)
 
-    # CSV export
-    with open('data.csv', 'w') as csvfile:
+    export_to_csv(records)
+
+def loop_parse_2(infile):
+    """ Přemazává záznamy z první sekce """
+    aid = None      # actual id
+    previous = None # previous line string
+    records = {}
+    for line in infile:
+        if not aid and re.match(lines.short1, line):
+            aid = lines.parse_invoice_id(line)
+            if aid not in records:
+                records[aid] = {}
+            res = {'id': aid}
+            record.parse_record(res, previous)
+            records[aid] = res
+        elif aid and re.match(lines.dud, line):
+            aid = None
+        elif aid and re.match(lines.comment, line):
+            records[aid]['comment'] = lines.parse_comment(line)
+        previous = line
+
+    print(len(records))
+    if len(records) < 1000:
+        import pprint
+        pprint.pprint(records)
+
+    export_to_csv(records)
+
+def export_to_csv(records, filename='data.csv'):
+    with open(filename, 'w') as csvfile:
         fieldnames = ['id', 'para', 'polo', 'uz', 'zj', 'org', 'orj', 'amount1', 'amount2', 'comment']
         writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
         writer.writeheader()
-        for r in records:
-            del(r['amount1a'])
-            del(r['amount1b'])
-            del(r['amount2a'])
-            del(r['amount2b'])
-            writer.writerow(r)
+        for i in records:
+            writer.writerow(records[i])
 
 def main():
     filename = 'test/data.kxx'
     #filename = 'data/22,12,2016_uct.kxx'
     with open(filename, encoding="cp1250") as infile:
         #loop_stats(infile)
-        loop_parse(infile)
+        loop_parse_2(infile)
 
 if __name__ == '__main__':
     sys.exit(main())
