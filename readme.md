@@ -1,29 +1,51 @@
 
 # Gexport
 
-Parsování prostých textových souborů `kxx` používaných k exportu účetnictví.
+Parsování prostých textových souborů `kxx` (56Gg) používaných k exportu účetnictví.
 
-## Unit tests
+## Spuštění
+
+Pouze test souboru, vygeneruje schéma souboru:
+```
+python3 -m gexport validate [-o <outfile.txt>] <infile.kxx>
+```
+
+Parsování:
+```
+python3 -m gexport parse [-r|--raw] [-o <outfile.csv>] <infile.kxx>
+```
+
+Spuštění unittestů programu:
 
 ```
 python3 -m unittest
 ```
 
-## Formát
-
-Export je ve formátu `kxx` ve dvou souborech. V jednom je účetnictví (samotné transakce) v druhém je rozpočet.
+## Cílový formát
 
 Podrobný [popis parsování](parsovani.md).
 
-My potřebujeme:
+Naparsováním získáme SQLite všech záznamů. To se hodí pro analytiku apod.
 
--  **Rozpočet** – strom příjmů a výdajů dle paragrafů, kde bude vždy schválený/upravený rozpočet a jaký je stav čerpání až do detailu akce
-- **Akce (ORJ)** – statická data o investičních akcích (název a ID, příp. souřadnice)
-- **Rozpočet akcí**, tj. strom výdajů a rozpočtu na akci dle paragrafů
-- **Faktury** – Jednotlivé doklady k akcím apod.
+| Název         |
+|---------------|
+| DOKLAD_ROK    |
+| DOKLAD_DATUM  |
+| DOKLAD_AGENDA |
+| DOKLAD_CISLO  |
+| ORJ           |
+| PARAGRAF      |
+| POLOZKA       |
+| SUBJEKT_IC    |
+| SUBJEKT_NAZEV |
+| CASTKA        |
+| POZNAMKA      |
+
+A číselníky orj a org.
 
 ## TODO
 
+- zkusit parsovat oboje
 - meziroční srovnání akcí
   - potvrzování stejných čísel
   - ruční napojení rozdílných čísel

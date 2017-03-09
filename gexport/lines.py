@@ -1,42 +1,55 @@
 #!/usr/bin/env python3
-"""Define types of lines per regular expresion in kxx files"""
+"""Define types of lines per regular expresion in kxx files for 56Gg format"""
 
 import re
 
-# Numbered line (je jich málo)
-# 5/@002411210012000MUCE
-num1 = r'^[0-9]/@[0-9]{15}[A-Z]{4}$'
-# 6/@002411210100 2 2016
-num2 = r'^[0-9]/@[0-9]{12} [0-9] [0-9]{4}$'
-# Record line (záznam transakce)
-# G/@19510000138000518030000000000000000000000000000000000000000000000000000000000003902206 000000000000000000
-record1 = r'^G/@[0-9]{86}[ -][0-9]{18}[ -]$'
-# ???
-record2 = r'^G/@[0-9]{2}[ ]{8}[0-9]{76}[ -][0-9]{18}[ -]$'
-# Short line (z ní parsuji číslo dokladu)
-# G/$00015100001381601100023
-short1 = r'^G/\$[0-9]{23}$'
-short2 = r'^G/\$[0-9]{4}[ ]{8}' # G/$0001        0Storno rezervace
-# Type line (skladba)
-# G/$0001000000001DDHM OISM
-# G/$0001000000001knihy, tisk
-short3 = r'^G/\$[0-9]{13}'
-# DUD line (oddělovač)
-# G/#0005510000137*DUD-00000001;
-dud = r'^G/#[0-9]{13}\*DUD-[0-9]{8};$'
-# Comment line
-# G/#0001510000138Smlouva GINIS 491/2012 MUCX - podpora SLA1 10-12/2015
-comment = r'^G/#[0-9]{13}'
+file_start = re.compile(''' # 5/@xxxxxxxx00yy000cccc
+^5/@                        # začátek řetězce
+(?P<IC> \d{8})00            # IC zpracovatelské organizace, pokud nemá IC, tak je to 10 místné
+        \d{2}000            # Období (lze ignorovat)
+        [a-zA-Z]{4}         # Licence
+$''', re.VERBOSE)
 
+month_start = re.compile('''# 6/@xxxxxxxxyyzz_t_rrrr
+^6/@                        # začátek řetězce
+(?P<IC>     \d{8})          # IC uctující organizace, pokud není IČ, tak je to 10 místné
+(?P<month>  \d{2})          # aktuální účetní období
+(?P<type>   \d{2})          # druh dokladu, číselník je v enums.py
+\ (?P<input>\d)\            # identifikator vstupu, číselník je v enums.py
+(?P<year>   \d{4})          # účetní rok
+$''', re.VERBOSE)
 
-def parse_invoice_id(line):
-    if not re.match(short1, line):
-        raise Exception("Not invoice id line")
-    return int(line[16:26])
+record = re.compile('''# G/@ddccccccccc000sssaaaakkoooooollllzzzuuuuuuuuujjjjjjjjjjgggggggggggggmmmmmmmmmmmmmmmmmm_dddddddddddddddddd_
+^G/@                        # Start, účetní záznam
+(?P<day>    \d{2})          # 0 Den zaúčtování
+(?P<gid>    \d{9})000       # 1 Číslo dokladu (a 3 nuly)
+(?P<su>     \d{3})          # 2 Syntetika (SU)
+(?P<au>     \d{4})          # 3 Analytika (AU)
+(?P<kap>    \d{2})          # 4 Kapiola (KAP)
+(?P<odpa>   \d{6})          # 5 Oddíl, paragraf (ODPA)
+(?P<pol>    \d{4})          # 6 Položka (POL)
+(?P<zj>     \d{3})          # 7 Záznamová jednotka (ZJ)
+(?P<uz>     \d{9})          # 8 Účelový znak (UZ)
+(?P<orj>    \d{10})         # 9 Organizační jednotka
+(?P<org>    \d{13})         # 10 Organizace
+(?P<dat>    \d{16})         # 11 Má dáti
+(?P<sdat>   \d{2})          # 12 Má dáti - haléře  TODO: lepší název
+(?P<sig_dat> -|C|\ )        # 13 Má dáti - znamenéko, mezera: kladné, - nebo C záporné
+(?P<dal>    \d{16})         # 14 Dal
+(?P<sdal>   \d{2})          # 15 Dal - haléře
+(?P<sig_dal> -|C|\ )        # 16 Dal - znaménko
+$''', re.VERBOSE)
 
-def parse_comment(line):
-    if re.match(dud, line):
-        raise Exception("Try parse DUD as comment")
-    if not re.match(comment, line):
-        raise Exception("Not comment line")
-    return line[16:]
+record_label = re.compile('''# G/$rrrrccccccccctttttttttttttttttttttttttttttttttttttttt...
+^G/\$                       # Start, následuje vždy jen za G/@ (record)
+(?P<line>   \d{4})          # 0 jednoznačné číslo řádky v dokladu v rámci dokladu
+(?P<gid>    \d{9})          # 1 číslo dokladu
+(?P<text>  [\w -;:,*=\n]*)  # 2 text k řádku dokladu
+''', re.VERBOSE)            # Konec řádku je \r\n, ale \n je ve výrazu => nelze doplnit $
+
+global_label = re.compile('''# G/#rrrrcccccccccttttttttttttttttttttttttttttttttttttttt...
+^G/\#                       # Start, následuje vždy jen za G/$ (record_label)
+(?P<line>   \d{4})          # jednoznačné číslo řádky v dokladu v rámci dokladu
+(?P<gid>    \d{9})          # číslo dokladu
+(?P<text>  [\w -/;:,*=\n]*) # text k řádku dokladu
+''', re.VERBOSE)            # Konec řádku je \r\n, ale \n je ve výrazu => nelze doplnit $
