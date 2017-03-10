@@ -69,6 +69,8 @@ def create_records_table(c):
         line int NOT NULL,   -- line in original file
         date date NOT NULL,  -- datum zaúčtování
         gid  int NOT NULL,   -- číslo dokladu
+        su   int NOT NULL,   -- syntetika
+        au   int NOT NULL,   -- analytika
         kap  int NOT NULL,   -- kapitola
         odpa int NOT NULL,   -- oddíl,paragraf
         pol  int NOT NULL,   -- položka
@@ -97,6 +99,12 @@ def create_comment_table(c):
         text text NOT NULL    -- text poznámky
     ) ''')
 
+def create_rozpocet_view(c):
+    c.execute(''' CREATE VIEW rozpocet AS
+    SELECT kap, odpa, pol, gid, date, orj, org, dati, dal, comment FROM record
+    WHERE odpa <> 0 AND pol <> 0;
+    ''')
+
 def log_it(c, line, level, error, message):
     c.execute('INSERT INTO log VALUES (?, ?, ?, ?)', (line, level, error, message))
 
@@ -110,11 +118,11 @@ def parse_record(line, year, month, i, c):
     try:
         date = datetime.date(year, month, int(x[0]))
     except ValueError:
-        log_it(i, 5, 'E', "Date: %s-%s-%s for line: %s" % (year, month, x[0], line))
+        log_it(c, i, 5, 'E', "Date: %s-%s-%s for line: %s" % (year, month, x[0], line))
         date = '0000-00-00'
     dati = int(x[11]) + (int(x[12]) * 0.01)
     dal  = int(x[14]) + (int(x[15]) * 0.01)
-    return (i, date, int(x[1]), int(x[4]), int(x[5]), int(x[6]), int(x[7]), int(x[8]), int(x[9]), int(x[10]), dati, dal, "")
+    return (i, date, int(x[1]), int(x[2]), int(x[3]), int(x[4]), int(x[5]), int(x[6]), int(x[7]), int(x[8]), int(x[9]), int(x[10]), dati, dal, "")
 
 def parse_into_db(infile, conn):
     """
@@ -127,7 +135,7 @@ def parse_into_db(infile, conn):
     id, lastrowid, month, year, res = (None, None, None, None, None)
     i = 0
 
-    log_it(c, 0, 0, 'S', 'Start of parsing, in time: %s' % datetime.now())
+    log_it(c, 0, 0, 'S', 'Start of parsing, in time: %s' % datetime.datetime.now())
     for line in infile:
         i += 1
         if lines.file_start.match(line):
@@ -141,7 +149,7 @@ def parse_into_db(infile, conn):
             sys.stdout.flush()
         elif lines.record.match(line):
             x = parse_record(line, year, month, i, c)
-            res = c.execute('INSERT INTO record VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)', x)
+            res = c.execute('INSERT INTO record VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)', x)
             lastrowid = res.lastrowid
         elif lines.record_label.match(line):
             x = lines.record_label.search(line).groups()
@@ -152,7 +160,8 @@ def parse_into_db(infile, conn):
         else:
             log_it(c, i, 5, 'E', "Can't parser line: %s" % line)
 
-    log_it(c, 0, 0, 'S', 'End of parsing, in time: %s' % datetime.now())
+    create_rozpocet_view(c)
+    log_it(c, 0, 0, 'S', 'End of parsing, in time: %s' % datetime.datetime.now())
     conn.commit()
 
     count = c.execute("SELECT count(*) FROM record").fetchone()
