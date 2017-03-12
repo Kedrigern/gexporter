@@ -3,6 +3,8 @@
 
 Parsování prostých textových souborů `kxx` (56Gg) používaných k exportu účetnictví.
 
+[![Build Status](https://travis-ci.org/Kedrigern/gexporter.svg?branch=master)](https://travis-ci.org/Kedrigern/gexporter)
+
 ## Spuštění
 
 Pouze test souboru, vygeneruje schéma souboru:
