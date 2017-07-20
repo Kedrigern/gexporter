@@ -1,0 +1,149 @@
+#!/usr/bin/env python3
+import sys
+import datetime
+
+class DB:
+    """ DB scheme
++------------+  +-------------+  +-----+
+| raw_record |  | raw_comment |  | log |
++------------+  +-------------+  +-----+
+       |                 |
+       v                 |
++---------------------+  |
+| raw_rozpocet (view) |  |
++---------------------+  |
+             |           |
+             v           |
+       +----------+      |
+       | rozpocet |  <-- +
+       +----------+
+    """
+
+    def __init__(self, conn, create=True):
+        self.conn = conn
+        if create:
+            self.create_schema()
+
+    def create_schema(self):
+        self._create_records_table()
+        self._create_comment_table()
+        self._create_log_table()
+        self._create_rozpocet_table()
+
+    def _create_records_table(self):
+        self.conn.execute(''' CREATE TABLE raw_record (
+            line int NOT NULL,   -- line in original file
+            date date NOT NULL,  -- datum zaúčtování
+            gid  int NOT NULL,   -- číslo dokladu
+            su   int NOT NULL,   -- syntetika
+            au   int NOT NULL,   -- analytika
+            kap  int NOT NULL,   -- kapitola
+            odpa int NOT NULL,   -- oddíl,paragraf
+            pol  int NOT NULL,   -- položka
+            zj   int NOT NULL,   -- záznamová jednotka
+            uz   int NOT NULL,   -- účelový znak
+            orj  int NOT NULL,   -- organizační jednotka
+            org  int NOT NULL,   -- organizace (projekt)
+            dati int NOT NULL,   -- má dáti
+            dal  int NOT NULL,   -- dal
+            comment text
+        ) ''')
+
+    def _create_comment_table(self):
+        self.conn.execute(''' CREATE TABLE raw_comment (
+            line  int NOT NULL,   -- line in original file
+            fline int NOT NULL,   -- line as in record (original value)
+            gid   int NOT NULL,   -- číslo dokladu
+            text text NOT NULL    -- text poznámky
+        ) ''')
+
+    def _create_log_table(self):
+        self.conn.execute(''' CREATE TABLE log (
+            line  int NOT NULL,             -- line in original file
+            level int NOT NULL,             -- log level
+            type varchar(1) NOT NULL,       -- E: error, L: line, N: notice
+            date date NOT NULL,             -- time
+            message varchar(255) NOT NULL
+        ) ''')
+
+    def _create_rozpocet_table(self):
+        self.conn.execute(''' CREATE TABLE rozpocet (
+            gid int NOT NULL,       -- unique identifier, gordic ID
+            date date NOT NULL,     -- date
+            odpa int NOT NULL,      -- oddíl, paragraf
+            pol  int NOT NULL,      -- položka
+            orj  int NOT NULL,      -- organizační jednotka
+            org  int NOT NULL,      -- organizace (projekt)
+            dati int NOT NULL,      -- dati
+            dal  int NOT NULL,      -- dal
+            partner text,           -- druhá smluvní strana
+            comment text,           -- inline comment
+            description text,       -- from long comment
+            evk text,               -- evk
+            evkt text,              -- evkt
+            pid text                -- id smlouvy
+        ) ''')
+
+    def create_rozpocet_view(self):
+        """
+        """
+        self.conn.execute('''
+        CREATE VIEW raw_rozpocet AS
+        SELECT kap, odpa, pol, gid, date, orj, org, dati, dal, comment FROM raw_record
+        WHERE (odpa <> 0 AND odpa is not NULL) AND (pol <> 0 AND pol is not NULL);
+        ''')
+        #self.conn.execute('''
+        #CREATE VIEW comment AS
+        #SELECT gid, group_concat(text) AS comment2 FROM raw_comment GROUP BY gid;
+        #''')
+        #self.conn.execute('''
+        #CREATE VIEW full AS
+        #SELECT gid, odpa, pol, date, orj, org, dati, dal, comment, comment2 FROM rozpocet
+        #INNER JOIN comment ON rozpocet.gid=comment.gid;
+        #''')
+
+    def log_it(self, line, level, error, message):
+        now = datetime.datetime.now()
+        self.conn.execute('INSERT INTO log VALUES (?, ?, ?, ?, ?)', (line, level, error, now, message))
+
+    def insert_raw_record(self, x):
+        return self.conn.execute('INSERT INTO raw_record VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)', x)
+
+    def insert_raw_comment(self, i, x):
+        self.conn.execute('INSERT INTO raw_comment VALUES (?, ?, ?, ?)', (i, int(x[0]), int(x[1]), x[2]))
+
+    def update_rec_comment(self, id, text):
+        self.conn.execute('UPDATE raw_record SET comment = ? WHERE rowid = ?', (text, id))
+
+    def insert_complete_record(self, records):
+        """Insert tuple:
+        (gid, date, odpa, pol, orj, org, dati, dal, partner, comment, description, evk, evkt, pid)
+        """
+        i = 0
+        for r in records:
+            i += 1
+            try:
+                self.conn.execute('INSERT INTO rozpocet VALUES (?, ?, ?, ?, ?,  ?, ?, ?, ?, ?,  ?, ?, ?, ?)', r)
+            except sqlite3.ProgrammingError as e:
+                # TODO: into db
+                print(records[i])
+                print(e)
+                sys.exit()
+
+    def rozpocet_count(self):
+        return int(self.conn.execute("SELECT count(*) FROM rozpocet").fetchone()[0])
+
+    def get_cursor(self):
+        return self.conn.cursor()
+
+    def fetch_comment_for(self, gid, c):
+        """
+        Return comment as string
+        conn    -- DB connection (sqlite3)
+        gid     -- global id
+        """
+        comments = c.execute("SELECT text FROM raw_comment WHERE gid=%s" % gid).fetchall()
+        result = ""
+        for c in comments:
+            result += c[0]
+        return result
