@@ -86,21 +86,16 @@ class DB:
 
     def create_rozpocet_view(self):
         """
+        Create view which join comments with record and filter irelevant data
         """
         self.conn.execute('''
-        CREATE VIEW raw_rozpocet AS
-        SELECT kap, odpa, pol, gid, date, orj, org, dati, dal, comment FROM raw_record
-        WHERE (odpa <> 0 AND odpa is not NULL) AND (pol <> 0 AND pol is not NULL);
+        CREATE view raw_rozpocet as
+        select r.gid, r.date, r.odpa, r.pol, r.orj, r.org, r.dati, r.dal, r.comment, c.text from
+          raw_record r left join
+          (select gid, group_concat(text, '') as text from raw_comment group by gid) c
+          on r.gid = c.gid
+         where (r.odpa <> 0 AND r.odpa is not NULL) and (r.pol > 5000 AND r.pol < 9000)
         ''')
-        #self.conn.execute('''
-        #CREATE VIEW comment AS
-        #SELECT gid, group_concat(text) AS comment2 FROM raw_comment GROUP BY gid;
-        #''')
-        #self.conn.execute('''
-        #CREATE VIEW full AS
-        #SELECT gid, odpa, pol, date, orj, org, dati, dal, comment, comment2 FROM rozpocet
-        #INNER JOIN comment ON rozpocet.gid=comment.gid;
-        #''')
 
     def log_it(self, line, level, error, message):
         now = datetime.datetime.now()

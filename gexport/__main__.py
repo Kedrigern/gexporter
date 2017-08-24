@@ -2,6 +2,7 @@
 
 import os
 import sys
+import csv
 import sqlite3
 import datetime
 import argparse
@@ -80,6 +81,8 @@ def parse_record(db, line, year, month, i, c):
 def parse_into_db(infile, db, verbosity=0):
     """
     Parse input file into sqlite3 DB
+    No changes to data, data are in same logic like in original file
+    (for example long comment are in multiple line)
     """
     c = db.get_cursor()
     id, lastrowid, month, year, res = (None, None, None, None, None)
@@ -118,72 +121,84 @@ def parse_into_db(infile, db, verbosity=0):
     db.log_it(0, 0, 'N', 'End of parsing, parsed %d lines' % i)
     db.conn.commit()
 
-def consolidate_line(c, db, line):
+def parse_long_comment(long_comment):
     """
-    c cursor
-    line 10-tuple 0 kap, 1 odpa, 2 pol, 3 gid, 4 date, 5 orj, 6 org, 7 dati, 8 dal, 9 comment
-    return 14-tuple (gid, date, odpa, pol, orj, org, dati, dal, partner, comment, description, evk, evkt, pid)
+    Parse long comment
+    Long comment is concatenated line for raw_comment table
     """
-    comment = db.fetch_comment_for(line[3], c)
-    ic, desc, partner, pid, evk, evkt = None, None, None, None, None, None
-    arr = comment.split('*')
-    if not comment.strip().startswith('*'):
+    ic, desc, partner, pid, evk, evkt, modul = None, None, None, None, None, None, None
+    arr = long_comment.split('*')
+    if not long_comment.strip().startswith('*'):
         desc = arr[0].strip()
-
     while len(arr) > 0:
         item = arr.pop()
         if not item:
             continue    # blank
         if item.startswith('DUD-'):
             continue    # record divider
-        if item.startswith('IC'):
-            ic = item[3:][:-1]
+        if item.startswith('IC-'):
+            ic = item[3:][:-1].rstrip(';').rstrip(' ')
         if item.startswith('DICT-'):
             partner = item.strip()[5:][:-1]
         if item.startswith('PID-'):
             pid = item.strip()[4:][:-1]
         if item.startswith('EVK-'):
             evk = item.strip()[4:][:-1]
+            modul = evk[0:3]
         if item.startswith('EVKT-'):
-            evkt = item.strip()[5:][:-1]
-    return (line[3], line[4], line[1], line[2], line[5], line[6], line[7], line[8], partner, line[9], desc, evk, evkt, pid)
+            evkt = item.strip()[5:].rstrip(';')
+    return {
+        'ic': ic,
+        'partner': partner,
+        'desc': desc,
+        'pid': pid,
+        'evk': evk,
+        'evkt': evkt,
+        'modul': modul
+    }
 
-def post_process(db, verbosity=0):
+def post_process(db, csvfile, verbosity=0):
     """
+    db: DB
+    hide: dict -- what hide in output
+    verbosity: num -- verbosity level
+    Parse long comment
+    Hide some items (personal data, for example pol 6399)
     """
     db.log_it(0, 0, 'N', 'Start of post processing')
     if verbosity > 0:
         print("Post processing (dot signs 700 budget records):")
-    #lines = conn.execute("SELECT * FROM rozpocet WHERE pol=5168") # tmp_
     lines = db.conn.execute("SELECT * FROM raw_rozpocet")
     c = db.get_cursor()
     records = []
     i = 0
-    for line in lines:
-        records.append(consolidate_line(c, db, line))
+    with open(csvfile, 'w', newline='\n') as csvfile:
+        writer = csv.writer(csvfile, delimiter=';', quotechar='"', quoting=csv.QUOTE_MINIMAL)
+        writer.writerow(['modul', 'date', 'odpa', 'pol', 'orj', 'org', 'dati', 'dal', 'ic', 'partner', 'evk', 'evkt', 'comment'])
+        for line in lines:
+            items = parse_long_comment(line[9])
+            record = [items['modul'], line[1], line[2], line[3], line[4], line[5], line[6], line[7], items['ic'], items['partner'], items['evk'], items['evkt'], line[8]]
+            writer.writerow(record)
         if verbosity > 0 and i % 700 == 0:
             sys.stdout.write('.')
             sys.stdout.flush()
-        i += 1
+    i += 1
     if verbosity > 0:
         print()
-    db.insert_complete_record(records)
-    db.conn.commit()
     db.log_it(0, 0, 'N', 'End of post processing')
     db.conn.commit()
 
-def summary(dbfile, db):
+def summary(dbfile, db, csvfile):
     c = db.get_cursor()
     raws = c.execute("SELECT count(*) FROM raw_record").fetchone()[0]
     logs = c.execute("SELECT count(*) FROM log").fetchone()[0]
-    rozpocet = c.execute("SELECT count(*) FROM rozpocet").fetchone()[0]
 
-    print("%d\t\tzáznamů" % raws)
-    print("%d\t\tpoložek" % rozpocet)
+    print("%d\t\tpoložek" % raws)
     print("%d\t\tlogů" % logs)
     print('Show logs:\nsqlite3 -column -header data.db "select * from log;"')
-    print('Export csv:\nsqlite3 -header -csv data.db "select * from rozpocet;" > rozpocet.csv')
+    #print('Export csv:\nsqlite3 -header -csv data.db "select * from rozpocet;" > rozpocet.csv')
     print('Uloženo v %s' % dbfile)
+    print('Uloženo v %s' % csvfile)
 
 
 def main():
@@ -191,11 +206,20 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__, epilog=epilog)
     meg = parser.add_mutually_exclusive_group()
     meg.add_argument('--validate', action='store_true', help='Analyze and validate input file. This option is for debuging.')
-    meg.add_argument('-d', '--db', default='data.db', help='Fílename for sqlite (overide if exists) for storing of parsed data (from raw data to clean data)')
-    parser.add_argument('-e', '--export', help='Filename to export results.')
+    meg.add_argument('--db', help='Fílename for sqlite (overide if exists) for storing of parsed data (from raw data to clean data)')
+    meg.add_argument('-e', '--csv', help='Fílename for csv (overide if exists)')
     parser.add_argument('--verbose', '-v', action='count', help='Verbosity')
     parser.add_argument('infile', help='Input file in kxx')
     args = parser.parse_args()
+
+    if not args.verbose:
+        args.verbose = 1
+
+    if not args.db:
+        args.db = args.infile.rstrip('kxx') + 'db'
+
+    if not args.csv:
+        args.csv = args.infile.rstrip('kxx') + 'csv'
 
     with open(args.infile, encoding="cp1250") as infile:
         if args.validate:
@@ -206,9 +230,9 @@ def main():
             with sqlite3.connect(args.db) as conn:
                 db = DB(conn, True)
                 parse_into_db(infile, db, args.verbose)
-                post_process(db, args.verbose)
+                post_process(db, args.csv, args.verbose)
                 if args.verbose > 0:
-                    summary(args.db, db)
+                    summary(args.db, db, args.csv)
 
 
 if __name__ == '__main__':

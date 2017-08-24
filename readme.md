@@ -18,7 +18,6 @@ python3 -m gexport parse [-r|--raw] [-o <outfile.csv>] <infile.kxx>
 ```
 
 Spuštění unittestů programu:
-
 ```
 python3 -m unittest
 ```
@@ -53,3 +52,7 @@ A číselníky orj a org.
   - ruční napojení rozdílných čísel
 - články
 - investiční mapa
+
+- položky pod 1000
+- interní převody
+- číselník ORG / ORJ
