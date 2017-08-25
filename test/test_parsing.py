@@ -4,7 +4,7 @@ import unittest
 from decimal import *
 
 from gexport import lines
-from gexport.record import parse_record
+from gexport.parsing import parse_record
 
 class RecordParseTest(unittest.TestCase):
     s1 = 'G/@03120000264000231030100006171516800000000000900000010006171100000001000000000000000000 000000000003902206 '

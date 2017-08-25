@@ -8,10 +8,10 @@ import datetime
 import argparse
 
 from gexport import __doc__, __version__, __author__, __license__
-from gexport import lines, record
+from gexport import lines, parsing
 from gexport.db import DB
+from gexport.record import Record
 from gexport.enums import LineType
-
 
 def loop_validate(infile):
     """
@@ -121,42 +121,6 @@ def parse_into_db(infile, db, verbosity=0):
     db.log_it(0, 0, 'N', 'End of parsing, parsed %d lines' % i)
     db.conn.commit()
 
-def parse_long_comment(long_comment):
-    """
-    Parse long comment
-    Long comment is concatenated line for raw_comment table
-    """
-    ic, desc, partner, pid, evk, evkt, modul = None, None, None, None, None, None, None
-    arr = long_comment.split('*')
-    if not long_comment.strip().startswith('*'):
-        desc = arr[0].strip()
-    while len(arr) > 0:
-        item = arr.pop()
-        if not item:
-            continue    # blank
-        if item.startswith('DUD-'):
-            continue    # record divider
-        if item.startswith('IC-'):
-            ic = item[3:][:-1].rstrip(';').rstrip(' ')
-        if item.startswith('DICT-'):
-            partner = item.strip()[5:][:-1]
-        if item.startswith('PID-'):
-            pid = item.strip()[4:][:-1]
-        if item.startswith('EVK-'):
-            evk = item.strip()[4:][:-1]
-            modul = evk[0:3]
-        if item.startswith('EVKT-'):
-            evkt = item.strip()[5:].rstrip(';')
-    return {
-        'ic': ic,
-        'partner': partner,
-        'desc': desc,
-        'pid': pid,
-        'evk': evk,
-        'evkt': evkt,
-        'modul': modul
-    }
-
 def post_process(db, csvfile, verbosity=0):
     """
     db: DB
@@ -166,39 +130,34 @@ def post_process(db, csvfile, verbosity=0):
     Hide some items (personal data, for example pol 6399)
     """
     db.log_it(0, 0, 'N', 'Start of post processing')
-    if verbosity > 0:
-        print("Post processing (dot signs 700 budget records):")
     lines = db.conn.execute("SELECT * FROM raw_rozpocet")
-    c = db.get_cursor()
-    records = []
-    i = 0
+    for line in lines:
+        record = Record(line)
+        db.insert_rozpocet(record)
+
     with open(csvfile, 'w', newline='\n') as csvfile:
         writer = csv.writer(csvfile, delimiter=';', quotechar='"', quoting=csv.QUOTE_MINIMAL)
-        writer.writerow(['modul', 'date', 'odpa', 'pol', 'orj', 'org', 'dati', 'dal', 'ic', 'partner', 'evk', 'evkt', 'comment'])
-        for line in lines:
-            items = parse_long_comment(line[9])
-            record = [items['modul'], line[1], line[2], line[3], line[4], line[5], line[6], line[7], items['ic'], items['partner'], items['evk'], items['evkt'], line[8]]
-            writer.writerow(record)
-        if verbosity > 0 and i % 700 == 0:
-            sys.stdout.write('.')
-            sys.stdout.flush()
-    i += 1
+        writer.writerow(['DATUM', 'MODUL', 'PARAGRAF', 'POLOZKA', 'CASTKA', 'AKCE', 'SUBJEKT_IC', 'SUBJEKT_NAZEV', 'POPIS'])
+        for line in db.conn.execute("SELECT * FROM csv"):
+            writer.writerow(line)
+
     if verbosity > 0:
         print()
     db.log_it(0, 0, 'N', 'End of post processing')
     db.conn.commit()
 
-def summary(dbfile, db, csvfile):
+def summary(db, args):
     c = db.get_cursor()
     raws = c.execute("SELECT count(*) FROM raw_record").fetchone()[0]
+    items = c.execute("SELECT count(*) FROM raw_rozpocet").fetchone()[0]
     logs = c.execute("SELECT count(*) FROM log").fetchone()[0]
 
-    print("%d\t\tpoložek" % raws)
+    print("%d\t\tnaparsovaných záznamů" % raws)
+    print("%d\t\tpoložek" % items)
     print("%d\t\tlogů" % logs)
-    print('Show logs:\nsqlite3 -column -header data.db "select * from log;"')
-    #print('Export csv:\nsqlite3 -header -csv data.db "select * from rozpocet;" > rozpocet.csv')
-    print('Uloženo v %s' % dbfile)
-    print('Uloženo v %s' % csvfile)
+    print('Show logs:\nsqlite3 -column -header %s "select * from log;"' % args.db)
+    print('Export csv:\nsqlite3 -header -csv %s "select * from csv;" > %s'% (args.db, args.csv))
+    print('CSV: %s, podrobná data: %s' % (args.csv, args.db))
 
 
 def main():
@@ -215,11 +174,17 @@ def main():
     if not args.verbose:
         args.verbose = 1
 
+    if not os.path.isdir('export'):
+        os.path.mkdir('export')
+
+    basename = os.path.basename(args.infile)
+    filename = os.path.splitext(basename)[0]
+
     if not args.db:
-        args.db = args.infile.rstrip('kxx') + 'db'
+        args.db =  os.path.join('export', filename + '.db')
 
     if not args.csv:
-        args.csv = args.infile.rstrip('kxx') + 'csv'
+        args.csv = os.path.join('export', filename + '.csv')
 
     with open(args.infile, encoding="cp1250") as infile:
         if args.validate:
@@ -229,10 +194,11 @@ def main():
                 os.remove(args.db)
             with sqlite3.connect(args.db) as conn:
                 db = DB(conn, True)
+                db.log_it(0, 0, 'I', 'Infile: %s, DBfile: %s, CSVfile: %s' % (args.infile, args.db, args.csv))
                 parse_into_db(infile, db, args.verbose)
                 post_process(db, args.csv, args.verbose)
                 if args.verbose > 0:
-                    summary(args.db, db, args.csv)
+                    summary(db, args)
 
 
 if __name__ == '__main__':

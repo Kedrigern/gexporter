@@ -1,37 +1,55 @@
-#!/usr/bin/env python3
-"""Parsing of one transaction record"""
+class Record(object):
 
-from decimal import *
+    def __init__(self, line):
+        """
+        line: main record from raw_rozpocet
+        """
+        self.gid = line[0]
+        self.modul = None
+        self.date = line[1]
+        self.kap = line[10]
+        self.odpa = line[2]
+        self.pol = line[3]
+        self.orj = line[4]
+        self.org = line[5]
+        self.dati = line[6]
+        self.dal = line[7]
+        self.ic = None
+        self.partner = None
+        self.pid = None
+        self.evk = None
+        self.evkt = None
+        self.desc = None
+        self.comment = line[8]
 
-# (starts at, size, zerofill)
-para = (26, 6)
-polo = (32, 4)
-zj =   (36, 3)  # zerofill
-uz =   (39, 9)  # zerofill
-orj =  (48, 10)
-org =  (58, 13)
-amount1a = (71, 16)
-amount1b = (87, 2)
-amount2a = (90, 16)
-amount2b = (106, 2)
+        self._parse_long_comment(line[9])
 
-def parse_record(result, s):
-    result['para'] = int(s[para[0]: para[0]+para[1]])
-    result['polo'] = int(s[polo[0]: polo[0]+polo[1]])
-    result['zj']   = int(s[zj[0]: zj[0]+zj[1]])
-    result['uz']   = int(s[uz[0]: uz[0]+uz[1]])
-    result['orj']  = int(s[orj[0]: orj[0]+orj[1]])
-    result['org']  = int(s[org[0]: org[0]+org[1]])
-    parse_amounts(result, s)
+    @property
+    def castka(self):
+        return self.dal-self.dati
 
-def parse_amounts(result, s):
-    a = Decimal(s[amount1a[0]: amount1a[0]+amount1a[1]])
-    b = int(s[amount1b[0]: amount1b[0]+amount1b[1]])
-    result['amount1'] = a + Decimal(b) / Decimal(100)
-    if s[89] == '-':
-        result['amount1'] *= -1
-    a = Decimal(s[amount2a[0]: amount2a[0]+amount2a[1]])
-    b = int(s[amount2b[0]: amount2b[0]+amount2b[1]])
-    result['amount2'] = a+ Decimal(b) / Decimal(100)
-    if s[108] == '-':
-        result['amount2'] *= -1
+    def _parse_long_comment(self, text):
+        arr = text.split('*')
+        while len(arr) > 0:
+            item = arr.pop()
+            if not item:
+                continue    # blank, skip can be empty string
+            elif item.startswith('DUD-'):
+                continue    # record divider
+            elif item.startswith('IC-'):
+                self.ic = item[3:][:-1].rstrip(';').rstrip(' ')
+            elif item.startswith('DICT-'):
+                self.partner = item.strip()[5:][:-1]
+            elif item.startswith('PID-'):
+                self.pid = item.strip()[4:][:-1]
+            elif item.startswith('EVK-'):
+                self.evk = item.strip()[4:][:-1]
+                self.modul = self.evk[0:3]
+            elif item.startswith('EVKT-'):
+                self.evkt = item.strip()[5:].rstrip(';')
+            elif item.strip():
+                self.desc = item.strip()
+
+    def __str__(self):
+        return """<gid: {gid}, date: {date}, pol: {pol}, partner: {partner}>""".format(
+            gid=self.gid, date=self.date, pol=self.pol, partner=self.partner)

@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import sys
+import sqlite3
 import datetime
 
 class DB:
@@ -7,16 +8,21 @@ class DB:
 +------------+  +-------------+  +-----+
 | raw_record |  | raw_comment |  | log |
 +------------+  +-------------+  +-----+
-       |                 |
-       v                 |
-+---------------------+  |
-| raw_rozpocet (view) |  |
-+---------------------+  |
-             |           |
-             v           |
-       +----------+      |
-       | rozpocet |  <-- +
-       +----------+
+       |           |
+       v           v
++---------------------+
+| raw_rozpocet (view) |
++---------------------+
+          |
+          v
+     +----------+
+     | rozpocet |
+     +----------+
+          |
+          v
+    +------------+
+    | csv (view) |
+    +------------+
     """
 
     def __init__(self, conn, create=True):
@@ -31,7 +37,7 @@ class DB:
         self._create_rozpocet_table()
 
     def _create_records_table(self):
-        self.conn.execute(''' CREATE TABLE raw_record (
+        self.conn.execute(''' CREATE TABLE IF NOT EXISTS raw_record (
             line int NOT NULL,   -- line in original file
             date date NOT NULL,  -- datum zaúčtování
             gid  int NOT NULL,   -- číslo dokladu
@@ -50,7 +56,7 @@ class DB:
         ) ''')
 
     def _create_comment_table(self):
-        self.conn.execute(''' CREATE TABLE raw_comment (
+        self.conn.execute(''' CREATE TABLE IF NOT EXISTS raw_comment (
             line  int NOT NULL,   -- line in original file
             fline int NOT NULL,   -- line as in record (original value)
             gid   int NOT NULL,   -- číslo dokladu
@@ -58,7 +64,7 @@ class DB:
         ) ''')
 
     def _create_log_table(self):
-        self.conn.execute(''' CREATE TABLE log (
+        self.conn.execute(''' CREATE TABLE IF NOT EXISTS log (
             line  int NOT NULL,             -- line in original file
             level int NOT NULL,             -- log level
             type varchar(1) NOT NULL,       -- E: error, L: line, N: notice
@@ -67,30 +73,34 @@ class DB:
         ) ''')
 
     def _create_rozpocet_table(self):
-        self.conn.execute(''' CREATE TABLE rozpocet (
-            gid int NOT NULL,       -- unique identifier, gordic ID
+        self.conn.execute(''' CREATE TABLE IF NOT EXISTS rozpocet (
+            modul text,             -- modul
             date date NOT NULL,     -- date
             odpa int NOT NULL,      -- oddíl, paragraf
             pol  int NOT NULL,      -- položka
             orj  int NOT NULL,      -- organizační jednotka
             org  int NOT NULL,      -- organizace (projekt)
-            dati int NOT NULL,      -- dati
-            dal  int NOT NULL,      -- dal
+            castka int NOT NULL,    -- částka (dati-dal)
+            ic int,                 -- ic
+            gid int NOT NULL,       -- unique identifier, gordic ID
             partner text,           -- druhá smluvní strana
-            comment text,           -- inline comment
+            pid text,               -- id smlouvy
             description text,       -- from long comment
             evk text,               -- evk
             evkt text,              -- evkt
-            pid text                -- id smlouvy
+            comment text,           -- inline comment
+            kap text                -- kapitola
         ) ''')
+        self.conn.execute('''CREATE VIEW IF NOT EXISTS csv AS
+        select date as DATUM, modul as MODUL, odpa as PARAGRAF, pol as POLOZKA, castka as CASTKA, org as AKCE, ic as SUBJEKT_IC, partner as SUBJEKT_NAZEV, evkt as POPIS from rozpocet''')
 
     def create_rozpocet_view(self):
         """
         Create view which join comments with record and filter irelevant data
         """
         self.conn.execute('''
-        CREATE view raw_rozpocet as
-        select r.gid, r.date, r.odpa, r.pol, r.orj, r.org, r.dati, r.dal, r.comment, c.text from
+        CREATE view IF NOT EXISTS raw_rozpocet as
+        select r.gid, r.date, r.odpa, r.pol, r.orj, r.org, r.dati, r.dal, r.comment, c.text, r.kap from
           raw_record r left join
           (select gid, group_concat(text, '') as text from raw_comment group by gid) c
           on r.gid = c.gid
@@ -100,6 +110,10 @@ class DB:
     def log_it(self, line, level, error, message):
         now = datetime.datetime.now()
         self.conn.execute('INSERT INTO log VALUES (?, ?, ?, ?, ?)', (line, level, error, now, message))
+
+    def insert_rozpocet(self, rec):
+        t = (rec.modul, rec.date, rec.odpa, rec.pol, rec.orj, rec.org, rec.castka, rec.ic, rec.gid, rec.partner, rec.pid, rec.desc, rec.evk, rec.evkt, rec.comment, rec.kap)
+        self.conn.execute('INSERT INTO rozpocet VALUES ( ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ? );', t )
 
     def insert_raw_record(self, x):
         return self.conn.execute('INSERT INTO raw_record VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)', x)
