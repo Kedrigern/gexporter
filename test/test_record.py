@@ -118,7 +118,7 @@ class ParseLongComment(unittest.TestCase):
 class RecordClassTest(unittest.TestCase):
 
     r1 = (230000002, '2017-01-02', 6171, 5182, 911, 0, 0, 3000, '',
-        '''*DICT-Brynychová Gabriela;*EVK-POK-201720170300002;\n*EVKT-POK_HLA_2012_PAP V:Brynychová-záloha na celý rok 2017,týkající se plateb ZPS;\n*PID-MC07X00L6QAJ;\n*DUD-00000001;\n*DICT-Hölzelová Petra;*EVK-POK-201720170300111;\n*EVKT-POK_HLA_2012_PAP V:provozní záloha  - Hölzelová Petra - RCN;*PID-MC07X00LCIN4;\n*DUD-00000001;\n*DICT-Jasińská Lenka;*EVK-POK-201720170300184;\n*EVKT-POK_HLA_2012_PAP V:Jasińská Lenka - záloha na občerstvení -školení APERTA;*PID-MC07X00LHJBS;\n*DUD-00000001;\n*IC-24202592;*DICT-8 minut s.r.o.;*EVK-POK-201720170300285;\n*EVKT-POK_HLA_2012_PAP P:Složení kauce - VS - 5500002251;*PID-MC07X00LQ8JK;\n*DUD-00000001;\n*DICT-Louthanová Alena;*EVK-POK-201720170300383;\n*EVKT-POK_HLA_2012_PAP V:Záloha, pí. Louthanová, 4.000,-Kč, honorář za čestnou stráž při pietním aktu dne 05.05. 2017, usn.č. 0363/17-R ze dne 18.04. 2017.;\n*PID-MC07X00LV71G;\n*DUD-00000001;\n*DICT-Hýblová Anna;*EVK-POK-201720170300489;\n*EVKT-POK_HLA_2012_PAP V:Odvod do ČS na č.ú.27 - vyúčtování zálohy - Hölzelová P.- provozní záloha;\n*PID-MC07X00M25HM;\n*DUD-00000001;\n*DICT-Fiala Jaroslav;*EVK-POK-201720170300597;\n*EVKT-POK_HLA_2012_PAP P:úhrada za kartu Multisport 7/2017;*PID-MC07X00M7ABO;\n*DUD-00000001;\n*DICT-Špaček Martin;*EVK-POK-201720170300693;\n*EVKT-POK_HLA_2012_PAP P:příjem peněz za stravenky - 6/2017;*PID-MC07X00MCJNG;\n*DUD-00000001;\n''',
+        '''*DICT-Jan Novák;*EVK-POK-201720170300002;\n*EVKT-POK_HLA_2012_PAP V:Novák-záloha na celý rok 2017,týkající se plateb ZPS;\n*PID-MC07X00L6QAJ;\n*DUD-00000001;\n*DICT-Novák2 Jan;*EVK-POK-201720170300111;\n*EVKT-POK_HLA_2012_PAP V:provozní záloha  - Novák2 Jan - RCN;*PID-MC07X00LCIN4;\n*DUD-00000001;\n*DICT-Novák3 Jan;*EVK-POK-201720170300184;\n*EVKT-POK_HLA_2012_PAP V:Novák3 Jan - záloha na občerstvení -školení APERTA;*PID-MC07X00LHJBS;\n*DUD-00000001;\n*IC-24202592;*DICT-8 minut s.r.o.;*EVK-POK-201720170300285;\n*EVKT-POK_HLA_2012_PAP P:Složení kauce - VS - 5500002251;*PID-MC07X00LQ8JK;\n*DUD-00000001;\n*DICT-Novák4 Jan;*EVK-POK-201720170300383;\n*EVKT-POK_HLA_2012_PAP V:Záloha, pí. Novák, 4.000,-Kč, honorář za čestnou stráž při pietním aktu dne 05.05. 2017, usn.č. 0363/17-R ze dne 18.04. 2017.;\n*PID-MC07X00LV71G;\n*DUD-00000001;\n*DICT-Novák4 Jan;*EVK-POK-201720170300489;\n*EVKT-POK_HLA_2012_PAP V:Odvod do ČS na č.ú.27 - vyúčtování zálohy - Novák5 J.- provozní záloha;\n*PID-MC07X00M25HM;\n*DUD-00000001;\n*DICT-Novák6 Jan;*EVK-POK-201720170300597;\n*EVKT-POK_HLA_2012_PAP P:úhrada za kartu Multisport 7/2017;*PID-MC07X00M7ABO;\n*DUD-00000001;\n*DICT-Novák7 Jan;*EVK-POK-201720170300693;\n*EVKT-POK_HLA_2012_PAP P:příjem peněz za stravenky - 6/2017;*PID-MC07X00MCJNG;\n*DUD-00000001;\n''',
         0)
 
     def test_construct(self):
@@ -132,8 +132,8 @@ class RecordClassTest(unittest.TestCase):
         self.assertEqual(r.org,  0)
         self.assertEqual(r.dati, 0)
         self.assertEqual(r.dal,  3000)
-        self.assertEqual(r.partner,  'Brynychová Gabriela')
+        self.assertEqual(r.partner,  'Jan Novák')
         self.assertEqual(r.evk,  'POK-201720170300002')
-        self.assertEqual(r.evkt, 'POK_HLA_2012_PAP V:Brynychová-záloha na celý rok 2017,týkající se plateb ZPS')
+        self.assertEqual(r.evkt, 'POK_HLA_2012_PAP V:Novák-záloha na celý rok 2017,týkající se plateb ZPS')
         self.assertEqual(r.pid,  'MC07X00L6QAJ' )
         self.assertEqual(r.castka, 3000)
