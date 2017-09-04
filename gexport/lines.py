@@ -7,7 +7,7 @@ file_start = re.compile(''' # 5/@xxxxxxxx00yy000cccc
 ^5/@                        # začátek řetězce
 (?P<IC> \d{8})00            # IC zpracovatelské organizace, pokud nemá IC, tak je to 10 místné
         \d{2}000            # Období (lze ignorovat)
-        [a-zA-Z]{4}         # Licence
+        [a-zA-Z0-9]{4}      # Licence
 $''', re.VERBOSE)
 
 month_start = re.compile('''# 6/@xxxxxxxxyyzz_t_rrrr
@@ -22,7 +22,7 @@ $''', re.VERBOSE)
 record = re.compile('''# G/@ddccccccccc000sssaaaakkoooooollllzzzuuuuuuuuujjjjjjjjjjgggggggggggggmmmmmmmmmmmmmmmmmm_dddddddddddddddddd_
 ^G/@                        # Start, účetní záznam
 (?P<day>    \d{2})          # 0 Den zaúčtování
-(?P<gid>    \d{9})000       # 1 Číslo dokladu (a 3 nuly)
+(?P<gid>    [ 0-9]{9})000    # 1 Číslo dokladu (a 3 nuly), P7 začíná číslo nulami pomocí mezer
 (?P<su>     \d{3})          # 2 Syntetika (SU)
 (?P<au>     \d{4})          # 3 Analytika (AU)
 (?P<kap>    \d{2})          # 4 Kapiola (KAP)
@@ -43,13 +43,13 @@ $''', re.VERBOSE)
 record_label = re.compile('''# G/$rrrrccccccccctttttttttttttttttttttttttttttttttttttttt...
 ^G/\$                       # Start, následuje vždy jen za G/@ (record)
 (?P<line>   \d{4})          # 0 jednoznačné číslo řádky v dokladu v rámci dokladu
-(?P<gid>    \d{9})          # 1 číslo dokladu
+(?P<gid>   [ \d]{9})        # 1 číslo dokladu
 (?P<text>  [\w -;:,*=\n]*)  # 2 text k řádku dokladu
 ''', re.VERBOSE)            # Konec řádku je \r\n, ale \n je ve výrazu => nelze doplnit $
 
 global_label = re.compile('''# G/#rrrrcccccccccttttttttttttttttttttttttttttttttttttttt...
 ^G/\#                       # Start, následuje vždy jen za G/$ (record_label)
 (?P<line>   \d{4})          # jednoznačné číslo řádky v dokladu v rámci dokladu
-(?P<gid>    \d{9})          # číslo dokladu
+(?P<gid>   [ \d]{9})        # číslo dokladu
 (?P<text>  [\w -/;:,*=\n]*) # text k řádku dokladu
 ''', re.VERBOSE)            # Konec řádku je \r\n, ale \n je ve výrazu => nelze doplnit $
