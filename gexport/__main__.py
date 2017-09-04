@@ -51,7 +51,7 @@ def loop_validate(infile):
             schema += "C"
             previous_line_type = LineType.C
         else:
-            print("Error: Unknown type of line\n%s" % line, file=sys.stderr)
+            print("Error: Unknown type of line (second line) \n%s%s" % (previous_line_text, line), file=sys.stderr)
             sys.exit()
         previous_line_text = line
 
@@ -91,7 +91,9 @@ def parse_into_db(infile, db, verbosity=0):
     db.log_it(0, 0, 'N', 'Start of parsing, in time: %s' % datetime.datetime.now())
     if verbosity > 0:
         print("Parsing (dot signs start of month):")
+
     for line in infile:
+        # Can raise UnicodeDecodeError:
         i += 1
         if lines.file_start.match(line):
             pass
@@ -115,6 +117,7 @@ def parse_into_db(infile, db, verbosity=0):
             db.insert_raw_comment(i, x)
         else:
             db.log_it(i, 5, 'E', "Can't parser line: %s" % line)
+
     if verbosity > 0:
         print()
     db.create_rozpocet_view()
@@ -126,13 +129,26 @@ def post_process(db, csvfile, verbosity=0):
     db: DB
     hide: dict -- what hide in output
     verbosity: num -- verbosity level
+    Only for uct, not ucr
     Parse long comment
     Hide some items (personal data, for example pol 6399)
     """
     db.log_it(0, 0, 'N', 'Start of post processing')
     lines = db.conn.execute("SELECT * FROM raw_rozpocet")
+    polozky = { 5499: {'sum': 0, 'count': 0} }
     for line in lines:
         record = Record(line)
+        if record.pol in polozky:
+            polozky[record.pol]['sum'] += record.castka
+            polozky[record.pol]['count'] += 1
+        else:
+            db.insert_rozpocet(record)
+
+    for (pol, val) in polozky.items():
+        db.log_it(0, 0, 'N', 'Anonym item pol=%s with amount %d Kč from %d items' % (pol, val['sum'], val['count']))
+        date = datetime.date(2016, 1, 1)
+        mok_line = (0, date, 0, pol, 0, 0, 0, val['sum'], '', '', 0)
+        record = Record(mok_line)
         db.insert_rozpocet(record)
 
     with open(csvfile, 'w', newline='\n') as csvfile:
@@ -163,11 +179,13 @@ def summary(db, args):
 def main():
     epilog = 'Version: ' + __version__ + ' Author: ' + __author__ + ' Licence: ' + __license__
     parser = argparse.ArgumentParser(description=__doc__, epilog=epilog)
+
     meg = parser.add_mutually_exclusive_group()
     meg.add_argument('--validate', action='store_true', help='Analyze and validate input file. This option is for debuging.')
     meg.add_argument('--db', help='Fílename for sqlite (overide if exists) for storing of parsed data (from raw data to clean data)')
     meg.add_argument('-e', '--csv', help='Fílename for csv (overide if exists)')
     parser.add_argument('--verbose', '-v', action='count', help='Verbosity')
+    parser.add_argument('--encoding', default='cp1250', help="Encoding of input file")
     parser.add_argument('infile', help='Input file in kxx')
     args = parser.parse_args()
 
@@ -186,7 +204,7 @@ def main():
     if not args.csv:
         args.csv = os.path.join('export', filename + '.csv')
 
-    with open(args.infile, encoding="cp1250") as infile:
+    with open(args.infile, encoding=args.encoding) as infile:
         if args.validate:
             loop_validate(infile)
         else:
