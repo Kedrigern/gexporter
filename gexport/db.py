@@ -5,24 +5,26 @@ import datetime
 
 class DB:
     """ DB scheme
-+------------+  +-------------+  +-----+
-| raw_record |  | raw_comment |  | log |
-+------------+  +-------------+  +-----+
-       |           |
-       v           v
-+---------------------+
-| raw_rozpocet (view) |
-+---------------------+
-          |
-          v
-     +----------+
-     | rozpocet |
-     +----------+
-          |
-          v
-    +------------+
-    | csv (view) |
-    +------------+
++-------------+  +-------------+
+| raw_comment |  | raw_record  |  < original data
++-------------+  +-------------+
+     |           |       |     +----------------------+
+     v           v       v                            v
++-----------------+  +-------------------------+  +--------------------------+
+| raw_ucto (view) |  |rozpocet_schvaleny (view)|  | rozpoctove_upravy (view) |
++-----------------+  +-------------------------+  +--------------------------+
+         |                                    |    |
+         v                                    v    v
+      +------+                             +----------+
+      | ucto |                             | rozpocet |
+      +------+                             +----------+
+         |
+         v
+ +------------+                         +-----+
+ | csv (view) |                         | log |
+ +------------+                         +-----+
+
+    # 231 - klíčový syntetický účet P7
     """
 
     def __init__(self, conn, create=True):
@@ -31,9 +33,10 @@ class DB:
             self.create_schema()
 
     def create_schema(self):
-        self._create_records_table()
-        self._create_comment_table()
+        self._create_records_table()    # raw_record
+        self._create_comment_table()    # raw comment
         self._create_log_table()
+        self._create_ucto_table()
         self._create_rozpocet_table()
 
     def _create_records_table(self):
@@ -52,7 +55,8 @@ class DB:
             org  int NOT NULL,   -- organizace (projekt)
             dati int NOT NULL,   -- má dáti
             dal  int NOT NULL,   -- dal
-            comment text
+            comment text,
+            typ  int NOT NULL    -- gordic typ
         ) ''')
 
     def _create_comment_table(self):
@@ -72,8 +76,8 @@ class DB:
             message varchar(255) NOT NULL
         ) ''')
 
-    def _create_rozpocet_table(self):
-        self.conn.execute(''' CREATE TABLE IF NOT EXISTS rozpocet (
+    def _create_ucto_table(self):
+        self.conn.execute(''' CREATE TABLE IF NOT EXISTS ucto (
             modul text,             -- modul
             date date NOT NULL,     -- date
             odpa int NOT NULL,      -- oddíl, paragraf
@@ -89,22 +93,49 @@ class DB:
             evk text,               -- evk
             evkt text,              -- evkt
             comment text,           -- inline comment
-            kap text                -- kapitola
+            kap text,               -- kapitola
+            su int NOT NULL,
+            au int NOT NULL
         ) ''')
         self.conn.execute('''CREATE VIEW IF NOT EXISTS csv AS
-        select date as DATUM, modul as MODUL, odpa as PARAGRAF, pol as POLOZKA, castka as CASTKA, org as AKCE, ic as SUBJEKT_IC, partner as SUBJEKT_NAZEV, evkt as POPIS from rozpocet''')
+        select date as DATUM, modul as MODUL, odpa as PARAGRAF, pol as POLOZKA, castka as CASTKA, org as AKCE, ic as SUBJEKT_IC, partner as SUBJEKT_NAZEV, evkt as POPIS from ucto''')
 
-    def create_rozpocet_view(self):
+    def _create_rozpocet_table(self):
+        self.conn.execute('''
+        CREATE TABLE IF NOT EXISTS rozpocet (
+            orj int NOT NULL,
+            odpa int NOT NULL,
+            pol int NOT NULL,
+            org int NOT NULL,
+            s_dal int NOT NULL,
+            s_dati int NOT NULL,
+            u_dal int NOT NULL,
+            u_dati int NOT NULL,
+            comment text,
+            upravy text
+        )''')
+
+    def create_ucto_view(self):
         """
         Create view which join comments with record and filter irelevant data
         """
         self.conn.execute('''
-        CREATE view IF NOT EXISTS raw_rozpocet as
-        select r.gid, r.date, r.odpa, r.pol, r.orj, r.org, r.dati, r.dal, r.comment, c.text, r.kap from
+        CREATE view IF NOT EXISTS raw_ucto as
+        select r.gid, r.date, r.odpa, r.pol, r.orj, r.org, r.dati, r.dal, r.comment, c.text, r.kap, r.su, r.au from
           raw_record r left join
           (select gid, group_concat(text, '') as text from raw_comment group by gid) c
           on r.gid = c.gid
-         where (r.odpa <> 0 AND r.odpa is not NULL) and (r.pol > 5000 AND r.pol < 9000)
+         where (r.odpa <> 0 AND r.odpa is not NULL) and (r.pol > 1000 AND r.pol < 9000) and r.su = 231
+        ''')
+
+        self.conn.execute('''
+        CREATE view IF NOT EXISTS rozpocet_schvaleny as
+        select orj, odpa, pol, org, dal as s_dal, dati as s_dati, replace(comment, X'0A', '') as comment from raw_record where typ = 2 and gid = 1 order by pol
+        ''')
+
+        self.conn.execute('''
+        CREATE view IF NOT EXISTS rozpoctove_upravy as
+        select orj, odpa, pol, org, dal, dati, replace(comment, X'0A', '') from raw_record where typ = 3
         ''')
 
     def log_it(self, line, level, error, message):
@@ -112,11 +143,12 @@ class DB:
         self.conn.execute('INSERT INTO log VALUES (?, ?, ?, ?, ?)', (line, level, error, now, message))
 
     def insert_rozpocet(self, rec):
-        t = (rec.modul, rec.date, rec.odpa, rec.pol, rec.orj, rec.org, rec.castka, rec.ic, rec.gid, rec.partner, rec.pid, rec.desc, rec.evk, rec.evkt, rec.comment, rec.kap)
-        self.conn.execute('INSERT INTO rozpocet VALUES ( ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ? );', t )
+        t = (rec.modul, rec.date, rec.odpa, rec.pol, rec.orj, rec.org, rec.castka, rec.ic, rec.gid, rec.partner, rec.pid, rec.desc, rec.evk, rec.evkt, rec.comment, rec.kap, rec.au, rec.su)
+        self.conn.execute('INSERT INTO ucto VALUES ( ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ? );', t )
 
-    def insert_raw_record(self, x):
-        return self.conn.execute('INSERT INTO raw_record VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)', x)
+    def insert_raw_record(self, x, type):
+        vals =  x + (type,)
+        return self.conn.execute('INSERT INTO raw_record VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)', vals)
 
     def insert_raw_comment(self, i, x):
         self.conn.execute('INSERT INTO raw_comment VALUES (?, ?, ?, ?)', (i, int(x[0]), int(x[1]), x[2]))
@@ -132,7 +164,7 @@ class DB:
         for r in records:
             i += 1
             try:
-                self.conn.execute('INSERT INTO rozpocet VALUES (?, ?, ?, ?, ?,  ?, ?, ?, ?, ?,  ?, ?, ?, ?)', r)
+                self.conn.execute('INSERT INTO ucto VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?,  ?, ?, ?, ?)', r)
             except sqlite3.ProgrammingError as e:
                 # TODO: into db
                 print(records[i])
@@ -140,7 +172,7 @@ class DB:
                 sys.exit()
 
     def rozpocet_count(self):
-        return int(self.conn.execute("SELECT count(*) FROM rozpocet").fetchone()[0])
+        return int(self.conn.execute("SELECT count(*) FROM ucto").fetchone()[0])
 
     def get_cursor(self):
         return self.conn.cursor()

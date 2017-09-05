@@ -21,6 +21,8 @@ class Record(object):
         self.evkt = None
         self.desc = None
         self.comment = line[8]
+        self.su = line[10]
+        self.au = line[11]
 
         self._parse_long_comment(line[9])
 

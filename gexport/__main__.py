@@ -85,7 +85,7 @@ def parse_into_db(infile, db, verbosity=0):
     (for example long comment are in multiple line)
     """
     c = db.get_cursor()
-    id, lastrowid, month, year, res = (None, None, None, None, None)
+    id, lastrowid, month, year, res, actual_type = (None, None, None, None, None, None)
     i = 0
 
     db.log_it(0, 0, 'N', 'Start of parsing, in time: %s' % datetime.datetime.now())
@@ -99,15 +99,17 @@ def parse_into_db(infile, db, verbosity=0):
             pass
         elif lines.month_start.match(line):
             x = lines.month_start.search(line).groups()
-            year = int(x[4])
             month = int(x[1])
-            db.log_it(i, 0, 'L', "Month %d start" % month)
+            actual_type = int(x[2])
+            input = int(x[3])
+            year = int(x[4])
+            db.log_it(i, 0, 'L', "Month %d start, type: %d" % (month, actual_type))
             if verbosity > 0:
                 sys.stdout.write('.')
                 sys.stdout.flush()
         elif lines.record.match(line):
             x = parse_record(db, line, year, month, i, c)
-            res = db.insert_raw_record(x)
+            res = db.insert_raw_record(x, actual_type)
             lastrowid = res.lastrowid
         elif lines.record_label.match(line):
             x = lines.record_label.search(line).groups()
@@ -120,7 +122,7 @@ def parse_into_db(infile, db, verbosity=0):
 
     if verbosity > 0:
         print()
-    db.create_rozpocet_view()
+    db.create_ucto_view()
     db.log_it(0, 0, 'N', 'End of parsing, parsed %d lines' % i)
     db.conn.commit()
 
@@ -134,7 +136,7 @@ def post_process(db, csvfile, verbosity=0):
     Hide some items (personal data, for example pol 6399)
     """
     db.log_it(0, 0, 'N', 'Start of post processing')
-    lines = db.conn.execute("SELECT * FROM raw_rozpocet")
+    lines = db.conn.execute("SELECT * FROM raw_ucto")
     polozky = { 5499: {'sum': 0, 'count': 0} }
     for line in lines:
         record = Record(line)
@@ -147,7 +149,7 @@ def post_process(db, csvfile, verbosity=0):
     for (pol, val) in polozky.items():
         db.log_it(0, 0, 'N', 'Anonym item pol=%s with amount %d Kč from %d items' % (pol, val['sum'], val['count']))
         date = datetime.date(2016, 1, 1)
-        mok_line = (0, date, 0, pol, 0, 0, 0, val['sum'], '', '', 0)
+        mok_line = (0, date, 0, pol, 0, 0, 0, val['sum'], '', '', 0, 0, 0)
         record = Record(mok_line)
         db.insert_rozpocet(record)
 
@@ -162,11 +164,33 @@ def post_process(db, csvfile, verbosity=0):
     db.log_it(0, 0, 'N', 'End of post processing')
     db.conn.commit()
 
+def rozpocet_upraveny(db):
+    db.conn.execute('INSERT INTO rozpocet select orj, odpa, pol, org, s_dal, s_dati, s_dal as u_dal, s_dati as u_dati, comment, "" as upravy FROM rozpocet_schvaleny;')
+    for line in db.conn.execute('select * from rozpoctove_upravy'):
+        vals = (line[0], line[1], line[2], line[3])
+        res = db.conn.execute('select rowid, * from rozpocet where orj = ? and odpa = ? and pol = ? and org = ?', vals).fetchall()
+        if res:
+            if len(res) > 1:
+                # TODO
+                db.log_it(0, 0, 'E', 'Multiline rozpočtová změna: %s , přiřazuji k 1. řádku.' % str(line))
+            u_dal = int(res[0][5]) + int(line[4])
+            u_dati = int(res[0][6]) + int(line[5])
+            vals = ( u_dal, u_dati, line[6], res[0][0] )
+            db.conn.execute('update rozpocet set u_dal = ?, u_dati = ?, upravy = ? where rowid = ?', vals)
+        else:
+            vals = (line[0], line[1], line[2], line[3], 0, 0, line[4], line[5], line[6], line[6])
+            db.conn.execute('insert into rozpocet values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)', vals)
+
 def summary(db, args):
     c = db.get_cursor()
     raws = c.execute("SELECT count(*) FROM raw_record").fetchone()[0]
-    items = c.execute("SELECT count(*) FROM raw_rozpocet").fetchone()[0]
     logs = c.execute("SELECT count(*) FROM log").fetchone()[0]
+
+    if args.rozpocet:
+        items = c.execute("SELECT count(*) FROM rozpocet").fetchone()[0]
+    else:
+        items = c.execute("SELECT count(*) FROM ucto").fetchone()[0]
+
 
     print("%d\t\tnaparsovaných záznamů" % raws)
     print("%d\t\tpoložek" % items)
@@ -174,7 +198,6 @@ def summary(db, args):
     print('Show logs:\nsqlite3 -column -header %s "select * from log;"' % args.db)
     print('Export csv:\nsqlite3 -header -csv %s "select * from csv;" > %s'% (args.db, args.csv))
     print('CSV: %s, podrobná data: %s' % (args.csv, args.db))
-
 
 def main():
     epilog = 'Version: ' + __version__ + ' Author: ' + __author__ + ' Licence: ' + __license__
@@ -186,6 +209,7 @@ def main():
     meg.add_argument('-e', '--csv', help='Fílename for csv (overide if exists)')
     parser.add_argument('--verbose', '-v', action='count', help='Verbosity')
     parser.add_argument('--encoding', default='cp1250', help="Encoding of input file")
+    parser.add_argument('--rozpocet', action='store_true', help="Parse rozpocet")
     parser.add_argument('infile', help='Input file in kxx')
     args = parser.parse_args()
 
@@ -214,10 +238,12 @@ def main():
                 db = DB(conn, True)
                 db.log_it(0, 0, 'I', 'Infile: %s, DBfile: %s, CSVfile: %s' % (args.infile, args.db, args.csv))
                 parse_into_db(infile, db, args.verbose)
-                post_process(db, args.csv, args.verbose)
+                if args.rozpocet:
+                    rozpocet_upraveny(db)
+                else:
+                    post_process(db, args.csv, args.verbose)
                 if args.verbose > 0:
                     summary(db, args)
-
 
 if __name__ == '__main__':
     sys.exit(main())
